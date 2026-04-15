@@ -41,6 +41,7 @@ interface AnalysisResult {
     question: string;
     star: string;
     score: string;
+    resumeBasis?: string;
   }[];
   uid: string;
   createdAt: any;
@@ -129,7 +130,8 @@ export default function Records() {
               type: q.type || '',
               question: q.question || '',
               star: q.starAdvice || q.star || '',
-              score: q.highScorePoints || q.score || ''
+              score: q.highScorePoints || q.score || '',
+              resumeBasis: q.resumeBasis || ''
             })),
             uid: result.uid,
             createdAt: result.created_at
@@ -613,7 +615,13 @@ export default function Records() {
                           <div className="flex justify-between items-start mb-3">
                             <span className="text-[10px] font-bold text-secondary uppercase tracking-widest">{q.type}</span>
                           </div>
-                          <p className="text-base font-bold text-on-surface mb-4">{q.question}</p>
+                          <p className="text-base font-bold text-on-surface mb-3">{q.question}</p>
+                          {q.resumeBasis && (
+                            <div className="p-2 bg-tertiary/5 rounded-lg border border-tertiary/10 mb-3">
+                              <p className="text-[10px] font-bold text-tertiary mb-0.5 uppercase">简历依据</p>
+                              <p className="text-xs text-on-surface-variant">{q.resumeBasis}</p>
+                            </div>
+                          )}
                           <div className="space-y-3">
                             <div className="p-3 bg-white/50 rounded-lg border border-outline-variant/5">
                               <p className="text-[10px] font-bold text-primary mb-1 uppercase">STAR 建议</p>

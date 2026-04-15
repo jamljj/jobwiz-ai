@@ -17,6 +17,7 @@ interface AnalysisResponse {
     question: string;
     starAdvice: string;
     highScorePoints: string;
+    resumeBasis: string;
   }[];
 }
 
@@ -86,47 +87,71 @@ class AIService {
 
   private buildPrompt(request: AnalysisRequest): string {
     // 限制各部分的token数量
-    const maxResumeTokens = 80000;
-    const maxJDTokens = 40000;
-    const maxSummaryTokens = 5000;
+    const maxResumeTokens = 60000;
+    const maxJDTokens = 30000;
+    const maxSummaryTokens = 8000;
 
     // 截断过长的文本
     const truncatedResume = this.truncateText(request.resume, maxResumeTokens);
     const truncatedJD = this.truncateText(request.jd, maxJDTokens);
-    const truncatedSummary = this.truncateText(request.summary || 'None', maxSummaryTokens);
+    const truncatedSummary = this.truncateText(request.summary || '用户未提供自我介绍', maxSummaryTokens);
 
     return `
-You are an AI career coach specializing in resume analysis and job matching. Analyze the following resume against the job description and provide a comprehensive analysis.
+你是一位专业的面试官。你需要根据候选人的**简历内容**和**自我介绍**，结合目标岗位的 JD，生成高度个性化的问题和建议。
 
-Resume:
+## 候选人简历（这是核心依据，必须基于此生成内容）：
 ${truncatedResume}
 
-Company: ${request.company}
-Position: ${request.position}
+## 候选人自我介绍（这是第二重要依据）：
+${truncatedSummary}
 
-Job Description:
+## 目标公司：${request.company}
+## 目标岗位：${request.position}
+
+## 岗位 JD：
 ${truncatedJD}
 
-Additional Information: ${truncatedSummary}
+## 任务要求（非常重要，请严格遵守）：
 
-Please provide the following analysis in JSON format:
+### 1. 优化个人简介（必须基于简历）
+你必须从简历中提取 2-3 个具体的项目经历、技能或数据，融入到个人简介中。
+**禁止**凭空捏造简历中不存在的内容。
+个人简介应该既能体现候选人的独特优势，又能与目标岗位高度契合。
+
+### 2. 面试问题预测（关键规则）
+你**必须**从简历中挑选具体经历，据此生成面试问题。
+面试官通常会根据简历中提到的项目、技能、工作经历来提问。
+
+生成规则：
+- 至少 2 道题必须直接基于简历中的具体项目/经历
+- 每道题必须说明是基于简历中哪段经历生成的（resumeBasis 字段）
+- 问题应该能够深入挖掘简历中的具体细节
+
+### 3. 缺失关键词
+从 JD 中找出简历和自我介绍中**都没有**体现的关键词，而不是 JD 中没有但自我介绍有的。
+
+### 4. 优化建议
+建议必须具体指出简历中哪部分需要调整，以及如何调整。
+
+## 输出格式（JSON，必须严格是有效 JSON）：
 {
-  "matchScore": number, // 0-100, how well the resume matches the job
-  "skillAlignment": number, // 0-100, how well skills align with job requirements
-  "missingKeywords": string[], // keywords from JD not found in resume
-  "optimizationSuggestions": string[], // specific suggestions to improve resume
-  "optimizedIntro": string, // optimized professional summary
+  "matchScore": number,
+  "skillAlignment": number,
+  "missingKeywords": string[],
+  "optimizationSuggestions": string[],
+  "optimizedIntro": "string",
   "interviewQuestions": [
     {
-      "type": string, // e.g., "Behavioral", "Technical", "Situational"
-      "question": string, // predicted interview question
-      "starAdvice": string, // how to answer using STAR method
-      "highScorePoints": string // key points to include for a high score
+      "type": "string",
+      "question": "string",
+      "resumeBasis": "string - 必须说明是基于简历中哪段经历，例如：'基于简历中提到的"主导电商首页改版，提升转化率20%"项目'",
+      "starAdvice": "string",
+      "highScorePoints": "string"
     }
   ]
 }
 
-Ensure the response is valid JSON and only contains the JSON object, no other text.`;
+请确保输出是**严格有效的 JSON 格式**，不要包含 markdown 代码块标记。`;
   }
 
   async analyzeResume(request: AnalysisRequest): Promise<AnalysisResponse> {
@@ -155,8 +180,8 @@ Ensure the response is valid JSON and only contains the JSON object, no other te
               content: prompt
             }
           ],
-          temperature: 0.3,
-          max_tokens: 2000,
+          temperature: 0.6,
+          max_tokens: 3000,
           response_format: {
             type: 'text'
           }
@@ -218,19 +243,22 @@ Ensure the response is valid JSON and only contains the JSON object, no other te
           type: '技术',
           question: '请介绍一下你最引以为豪的项目',
           starAdvice: '使用STAR方法：情境(Situation)、任务(Task)、行动(Action)、结果(Result)来回答',
-          highScorePoints: '强调项目的挑战性、你的具体贡献、使用的技术栈和取得的成果'
+          highScorePoints: '强调项目的挑战性、你的具体贡献、使用的技术栈和取得的成果',
+          resumeBasis: '基于简历中的项目经历'
         },
         {
           type: '行为',
           question: '如何处理团队中的冲突',
           starAdvice: '使用STAR方法，描述具体的冲突场景和你如何解决',
-          highScorePoints: '强调沟通技巧、问题解决能力和团队合作精神'
+          highScorePoints: '强调沟通技巧、问题解决能力和团队合作精神',
+          resumeBasis: '基于简历中的团队协作经历'
         },
         {
           type: '技术',
           question: '你如何学习新技术',
           starAdvice: '提供具体的学习方法和例子',
-          highScorePoints: '展示学习能力、自我驱动和持续学习的态度'
+          highScorePoints: '展示学习能力、自我驱动和持续学习的态度',
+          resumeBasis: '基于简历中提到的技术栈和学习经历'
         }
       ]
     };

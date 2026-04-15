@@ -3,6 +3,40 @@ import { motion } from 'motion/react';
 import { Upload, Building2, Briefcase, FileText, Info, CheckCircle2, Sparkles, BarChart3, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { aiService, AnalysisRequest } from '../lib/aiService';
+import * as pdfjsLib from 'pdfjs-dist';
+import mammoth from 'mammoth';
+
+// 配置 PDF.js worker（使用本地 worker 避免 CDN 加载问题）
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString();
+
+// 从 PDF 中提取文本内容
+async function extractTextFromPDF(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    // 将文本项连接成字符串，保留基本的段落结构
+    const pageText = content.items
+      .map((item: any) => item.str)
+      .join(' ')
+      .replace(/\s{2,}/g, '\n'); // 将多个空格替换为换行
+    fullText += pageText + '\n\n';
+  }
+  return fullText.trim();
+}
+
+// 从 Word (.docx) 中提取文本内容
+async function extractTextFromWord(file: File): Promise<string> {
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  return result.value.trim();
+}
 
 export default function NewAnalysis() {
   const navigate = useNavigate();
@@ -27,56 +61,86 @@ export default function NewAnalysis() {
     summary: '您好，我是张小明。拥有 6 年互联网产品经验，曾主导某社交 App 从 0 到 1000 万日活的增长历程。我擅长利用数据看板驱动决策，在 GTM 策略上有成熟的方法论沉淀。我非常认可字节跳动的“始终创业”文化，希望通过本次分析了解我过往在增长领域的经验如何更好地契合该高级产品经理岗位。'
   });
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      // 检查文件类型
       const fileType = selectedFile.type;
-      if (fileType === 'application/pdf') {
-        setIsUploading(true);
-        // PDF文件需要特殊处理，这里我们暂时使用一个简单的方法
-        // 实际项目中应该使用PDF解析库
+      const fileName = selectedFile.name.toLowerCase();
+
+      // 判断文件类型：优先按 MIME type，其次按扩展名
+      const isPDF = fileType === 'application/pdf' || fileName.endsWith('.pdf');
+      const isWord = fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                     fileName.endsWith('.docx');
+
+      if (isPDF) {
         setFile(selectedFile);
-        // 模拟PDF解析，使用一个示例文本
-        const mockResumeText = `姓名：张小明
+        setIsUploading(true);
 
-教育背景：
-- 北京大学，计算机科学与技术专业，本科
+        try {
+          const resumeText = await extractTextFromPDF(selectedFile);
 
-工作经验：
-- 字节跳动，高级软件工程师，3年
-- 腾讯，软件工程师，2年
+          // 检测是否为扫描版 PDF（提取的文字很少或几乎为空）
+          if (!resumeText || resumeText.trim().length < 50) {
+            setIsUploading(false);
+            alert('⚠️ 无法从 PDF 中提取文本。\n\n可能原因：\n1. PDF 是扫描版（图片合成），文字无法直接提取\n2. PDF 受加密保护\n3. PDF 内容为空\n\n💡 建议：将 PDF 另存为 Word 格式后重新上传，或联系客服获取帮助。');
+            return;
+          }
 
-技能：
-- 前端：React, TypeScript, JavaScript
-- 后端：Node.js, Express
-- 数据库：MongoDB, MySQL
-- 其他：Docker, Git
+          setResumeText(resumeText);
+          setIsUploading(false);
 
-项目经验：
-1. 电商平台前端重构，提升页面加载速度30%
-2. 实时聊天系统开发，支持10万并发
-3. 数据可视化平台搭建，提供实时数据分析
+          if (resumeText.length > 100000) {
+            alert('简历内容较长，系统会自动截断以符合AI模型的输入限制。');
+          } else {
+            alert('PDF 解析成功，共提取 ' + resumeText.length + ' 个字符。');
+          }
+        } catch (error: any) {
+          console.error('PDF 解析失败:', error);
+          setIsUploading(false);
+          alert('PDF 解析失败（' + (error?.message || '未知错误') + '）\n\n💡 建议：将 PDF 另存为 Word 格式（.docx）后重新上传。');
+        }
+      } else if (isWord) {
+        // Word 文档使用 mammoth 解析
+        setFile(selectedFile);
+        setIsUploading(true);
 
-自我评价：
-拥有5年互联网开发经验，擅长前端技术栈，有良好的团队协作能力和问题解决能力。`;
-        setResumeText(mockResumeText);
-        setIsUploading(false);
-        alert('PDF文件已上传，系统已提取关键信息。');
+        try {
+          const resumeText = await extractTextFromWord(selectedFile);
+
+          if (!resumeText || resumeText.trim().length < 50) {
+            setIsUploading(false);
+            alert('Word 文档内容读取失败，可能是文档为空或受保护。');
+            return;
+          }
+
+          setResumeText(resumeText);
+          setIsUploading(false);
+
+          if (resumeText.length > 100000) {
+            alert('简历内容较长，系统会自动截断以符合AI模型的输入限制。');
+          } else {
+            alert('Word 文档解析成功，共提取 ' + resumeText.length + ' 个字符。');
+          }
+        } catch (error: any) {
+          console.error('Word 解析失败:', error);
+          setIsUploading(false);
+          alert('Word 文档解析失败（' + (error?.message || '未知错误') + '）\n\n💡 建议：确保文档是 .docx 格式（Word 2007及以上）。');
+        }
       } else {
+        // 文本文件直接读取
         setFile(selectedFile);
         setIsUploading(true);
-        
-        // 读取文本文件内容
+
         const reader = new FileReader();
         reader.onload = (event) => {
           const text = event.target?.result as string;
           setResumeText(text);
           setIsUploading(false);
-          
-          // 检查文本长度
+
           if (text.length > 100000) {
             alert('简历内容过长，系统会自动截断以符合AI模型的输入限制。');
+          } else {
+            alert('简历内容已读取，共 ' + text.length + ' 个字符。');
           }
         };
         reader.onerror = () => {

@@ -23,5 +23,6 @@ export interface AnalysisResult {
     question: string;
     starAdvice: string;
     highScorePoints: string;
+    resumeBasis: string;
   }[];
 }

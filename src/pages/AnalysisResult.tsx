@@ -308,7 +308,13 @@ export default function AnalysisResult() {
                       <Copy className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
                   </div>
-                  <h4 className="font-black text-xl mb-8 leading-tight group-hover:text-primary transition-colors">{q.question}</h4>
+                  <h4 className="font-black text-xl mb-4 leading-tight group-hover:text-primary transition-colors">{q.question}</h4>
+                  {q.resumeBasis && (
+                    <div className="p-3 bg-tertiary/5 rounded-xl border border-tertiary/10 mb-4">
+                      <span className="text-[10px] font-black text-tertiary uppercase mb-1 block tracking-widest">简历依据</span>
+                      <p className="text-xs text-tertiary leading-relaxed font-medium">{q.resumeBasis}</p>
+                    </div>
+                  )}
                   <div className="mt-auto space-y-4">
                     <div className="p-5 bg-white rounded-2xl border border-outline-variant/10 shadow-sm">
                       <span className="text-[10px] font-black text-primary uppercase mb-2 block tracking-widest">STAR 核心建议</span>
