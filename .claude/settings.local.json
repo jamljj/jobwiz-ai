@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/leil/AppData/Local/Temp/claude/c--Users-lei-Desktop-JOB-ASSENT-jobwiz-ai/20098c06-9a93-49e7-9d8d-0a74b0de1548/tasks/**)",
+      "Read(//tmp/claude/c--Users-lei-Desktop-JOB-ASSENT-jobwiz-ai/20098c06-9a93-49e7-9d8d-0a74b0de1548/tasks/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)"
+    ]
+  }
+}
